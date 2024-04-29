@@ -18,10 +18,12 @@ export const styles = StyleSheet.create({
   label: {
     fontSize: 18,
     marginBottom: 5,
+    color: '#000',
   },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
+    color: '#000',
     borderRadius: 5,
     padding: 10,
     marginBottom: 15,
@@ -33,7 +35,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 18,
     fontWeight: 'bold',
   },
