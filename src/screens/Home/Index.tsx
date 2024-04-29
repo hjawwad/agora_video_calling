@@ -9,7 +9,11 @@ import {
 } from 'react-native-agora';
 
 import {styles} from './styles';
-import RoomForm from '../../components/RoomForm/Index';
+import FeatherIcon from 'react-native-vector-icons/Feather';
+
+import IoniconsIcon from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
 import {
   requestCameraAndAudioPermission,
   requestCameraAndAudioPermissionIOS,
@@ -85,18 +89,27 @@ const HomeScreen = () => {
     setJoined(false);
   };
 
-  // Function to toggle video mute
   const toggleVideoMute = () => {
-    const newValue = !isVideoMuted;
-    setIsVideoMuted(newValue);
-    engine.current?.muteLocalVideoStream(newValue);
+    if (!isVideoMuted) {
+      engine.current?.disableVideo();
+    } else {
+      engine.current?.enableVideo();
+    }
+    setIsVideoMuted(!isVideoMuted);
   };
 
-  // Function to toggle audio mute
   const toggleAudioMute = () => {
-    const newValue = !isAudioMuted;
-    setIsAudioMuted(newValue);
-    engine.current?.muteLocalAudioStream(newValue);
+    setIsAudioMuted(!isAudioMuted);
+
+    if (!isAudioMuted) {
+      engine.current?.disableAudio();
+    } else {
+      engine.current?.enableAudio;
+    }
+  };
+
+  const toggleSwitchCamer = () => {
+    engine.current?.switchCamera();
   };
 
   const renderVideos = () => {
@@ -148,6 +161,9 @@ const HomeScreen = () => {
           <TouchableOpacity onPress={() => startCall()}>
             <Text style={styles.buttonText}>Join Room</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => endCall()}>
+            <Text style={styles.buttonText}>End Room</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => console.log('Record Video pressed')}>
             <Text style={styles.buttonText}>Record Video</Text>
           </TouchableOpacity>
@@ -155,7 +171,6 @@ const HomeScreen = () => {
       ) : (
         <View style={{flex: 1}}>
           {renderVideos()}
-
           <View
             style={{
               width: '100%',
@@ -163,35 +178,24 @@ const HomeScreen = () => {
               position: 'absolute',
               alignSelf: 'center',
               flexDirection: 'row',
-              paddingHorizontal: 100,
+              paddingHorizontal: 50,
               justifyContent: 'space-between',
             }}>
-            <TouchableOpacity
-              onPress={endCall}
-              style={{
-                width: 50,
-                height: 50,
-                backgroundColor: 'red',
-                borderRadius: 50,
-              }}></TouchableOpacity>
-            <TouchableOpacity
-              onPress={toggleVideoMute}
-              style={{
-                width: 50,
-                height: 50,
-                backgroundColor: isVideoMuted ? 'green' : 'red',
-                borderRadius: 50,
-              }}
-            />
-            <TouchableOpacity
-              onPress={toggleAudioMute}
-              style={{
-                width: 50,
-                height: 50,
-                backgroundColor: isAudioMuted ? 'green' : 'red',
-                borderRadius: 50,
-              }}
-            />
+            <TouchableOpacity onPress={toggleVideoMute}>
+              <FeatherIcon
+                name={isVideoMuted ? 'camera-off' : 'camera'}
+                size={30}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleAudioMute}>
+              <FeatherIcon name={isAudioMuted ? 'mic-off' : 'mic'} size={30} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleSwitchCamer}>
+              <IoniconsIcon name="camera-reverse-outline" size={30} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={endCall}>
+              <MaterialIcons name={'call-end'} size={30} color="red" />
+            </TouchableOpacity>
           </View>
         </View>
       )}
