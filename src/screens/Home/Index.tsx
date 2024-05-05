@@ -8,9 +8,15 @@ import {
   RtcSurfaceView,
 } from 'react-native-agora';
 
+import {
+  Camera,
+  useCameraDevice,
+  useCameraFormat,
+  useCameraPermission,
+} from 'react-native-vision-camera';
+
 import {styles} from './styles';
 import FeatherIcon from 'react-native-vector-icons/Feather';
-
 import IoniconsIcon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -22,16 +28,18 @@ import {
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYAj6f7D4tMZWhu8887mtdBvvJvI3uRxdfFTytH5oF8P5gzUKDMmJlqbGFiaGSclpqSZJaQaWJqYGJkkWiYlmKaZmyebJ7W76aQ2BjAy3VDmZGBkgEMTnZwhJLS7JzEuPT85IzMtLzWFgAACDTyKc',
-  channelName: 'Testing_channel',
+    '007eJxTYEiI//P2189yllvhbk+Lz75ZkePYKHzj5lmZ3DtZtpc1/CcqMCQnWpoaW5gYJiWnpZokpRlYmpgamCRZJCaapZiaJZsnL440TmsIZGTIVZ3KxMgAgSA+P0NIanFJZl56vHNGYl5eag4DAwCv0iW6',
+  channelName: 'Testing_Channel',
 };
 
 const HomeScreen = () => {
   let engine = useRef<IRtcEngine | null>(null);
+  const camera = useRef<Camera>(null);
 
   // New state variables for mute status
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
+  const [record, setRecord] = useState<string>('start');
   const [peerIds, setPeerIds] = useState<number[]>([]);
   const [isJoined, setJoined] = useState<boolean>(false);
 
@@ -112,6 +120,29 @@ const HomeScreen = () => {
     engine.current?.switchCamera();
   };
 
+  const {hasPermission, requestPermission} = useCameraPermission();
+  const device: any = useCameraDevice('front');
+
+  const startRecording = () => {
+    console.log('start recording');
+
+    camera.current?.startRecording({
+      onRecordingFinished: video => console.log(video),
+      onRecordingError: error => console.error(error),
+    });
+    setRecord('stop');
+  };
+
+  const stopRecording = () => {
+    console.log('stop recording');
+    setRecord('start');
+    camera.current?.stopRecording();
+  };
+
+  const format = useCameraFormat(device, [
+    {photoResolution: {width: 1280, height: 720}},
+  ]);
+
   const renderVideos = () => {
     return (
       <View style={styles.fullView}>
@@ -171,6 +202,16 @@ const HomeScreen = () => {
       ) : (
         <View style={{flex: 1}}>
           {renderVideos()}
+          <Camera
+            ref={camera}
+            photo={true}
+            format={format}
+            style={{height: 500}}
+            device={device}
+            isActive={true}
+            video={true}
+            audio={true}
+          />
           <View
             style={{
               width: '100%',
@@ -190,11 +231,19 @@ const HomeScreen = () => {
             <TouchableOpacity onPress={toggleAudioMute}>
               <FeatherIcon name={isAudioMuted ? 'mic-off' : 'mic'} size={30} />
             </TouchableOpacity>
+
             <TouchableOpacity onPress={toggleSwitchCamer}>
               <IoniconsIcon name="camera-reverse-outline" size={30} />
             </TouchableOpacity>
             <TouchableOpacity onPress={endCall}>
               <MaterialIcons name={'call-end'} size={30} color="red" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={record === 'start' ? startRecording : stopRecording}>
+              <IoniconsIcon
+                name={record === 'start' ? 'recording-sharp' : 'recording'}
+                size={30}
+              />
             </TouchableOpacity>
           </View>
         </View>
