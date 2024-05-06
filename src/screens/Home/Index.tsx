@@ -1,18 +1,28 @@
-import {View, Text, TouchableOpacity, Platform, ScrollView} from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Platform,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import React, {useEffect, useRef, useState} from 'react';
 import {
   ChannelProfileType,
   ClientRoleType,
   createAgoraRtcEngine,
+  ExternalVideoSourceType,
   IRtcEngine,
   RtcSurfaceView,
+  VideoBufferType,
+  VideoPixelFormat,
 } from 'react-native-agora';
 
 import {
   Camera,
   useCameraDevice,
   useCameraFormat,
-  useCameraPermission,
+  useFrameProcessor,
 } from 'react-native-vision-camera';
 
 import {styles} from './styles';
@@ -28,7 +38,7 @@ import {
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYEiI//P2189yllvhbk+Lz75ZkePYKHzj5lmZ3DtZtpc1/CcqMCQnWpoaW5gYJiWnpZokpRlYmpgamCRZJCaapZiaJZsnL440TmsIZGTIVZ3KxMgAgSA+P0NIanFJZl56vHNGYl5eag4DAwCv0iW6',
+    '007eJxTYCitWmKqprrxIH/Cg32Loj9nO2y50iA2PWvRp2N+bP8Ncq4pMCQnWpoaW5gYJiWnpZokpRlYmpgamCRZJCaapZiaJZsnWzZZpDUEMjLsCfzBwAiFID4/Q0hqcUlmXnq8c0ZiXl5qDgMDABX7JNk=',
   channelName: 'Testing_Channel',
 };
 
@@ -42,13 +52,20 @@ const HomeScreen = () => {
   const [record, setRecord] = useState<string>('start');
   const [peerIds, setPeerIds] = useState<number[]>([]);
   const [isJoined, setJoined] = useState<boolean>(false);
+  const [videoTrackId, setVideoTrackId] = useState<number>();
+
+  const device: any = useCameraDevice('front');
 
   const init = async () => {
     engine.current = await createAgoraRtcEngine();
-    engine.current.initialize({appId: config.appId});
-    engine.current.setChannelProfile(
-      ChannelProfileType.ChannelProfileLiveBroadcasting,
-    );
+    engine.current.initialize({
+      appId: config.appId,
+      channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
+    });
+
+    engine.current
+      .getMediaEngine()
+      .setExternalVideoSource(true, false, ExternalVideoSourceType.VideoFrame);
 
     engine.current.setClientRole(ClientRoleType.ClientRoleBroadcaster);
     engine.current.enableVideo();
@@ -75,18 +92,20 @@ const HomeScreen = () => {
     });
 
     engine.current.addListener('onError', error => {
-      console.log('Getting en error', error);
+      Alert.alert(`Getting an error ${error}`);
     });
   };
 
   const startCall = async () => {
     await init();
     await engine.current?.joinChannel(config.token, config.channelName, 0, {});
+    setVideoTrackId(engine.current?.createCustomVideoTrack());
   };
 
   const endCall = async () => {
     engine.current?.leaveChannel();
     engine.current?.removeAllListeners();
+    engine.current?.destroyCustomVideoTrack(videoTrackId!);
     try {
       engine.current?.release();
     } catch (e) {
@@ -119,9 +138,6 @@ const HomeScreen = () => {
   const toggleSwitchCamer = () => {
     engine.current?.switchCamera();
   };
-
-  const {hasPermission, requestPermission} = useCameraPermission();
-  const device: any = useCameraDevice('front');
 
   const startRecording = () => {
     console.log('start recording');
@@ -158,6 +174,7 @@ const HomeScreen = () => {
   };
 
   const renderRemoteVideos = () => {
+    console.log('renderRemoteVideos', peerIds);
     return (
       <ScrollView
         style={styles.remoteContainer}
@@ -177,6 +194,23 @@ const HomeScreen = () => {
       </ScrollView>
     );
   };
+
+  const frameProcessor = useFrameProcessor(frame => {
+    'worklet';
+    if (frame.pixelFormat === 'rgb') {
+      const buffer = frame.toArrayBuffer();
+      const data = new Uint8Array(buffer);
+
+      engine.current?.getMediaEngine().pushVideoFrame({
+        type: VideoBufferType.VideoBufferRawData,
+        format: VideoPixelFormat.VideoPixelRgba,
+        buffer: data,
+        videoTrackId: videoTrackId,
+        stride: frame.width,
+        height: frame.height,
+      } as any);
+    }
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -204,14 +238,16 @@ const HomeScreen = () => {
           {renderVideos()}
           <Camera
             ref={camera}
-            photo={true}
+            frameProcessor={frameProcessor}
             format={format}
             style={{height: 500}}
+            pixelFormat="rgb"
             device={device}
             isActive={true}
             video={true}
             audio={true}
           />
+
           <View
             style={{
               width: '100%',
