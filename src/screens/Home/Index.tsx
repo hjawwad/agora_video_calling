@@ -38,7 +38,7 @@ import {
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYCitWmKqprrxIH/Cg32Loj9nO2y50iA2PWvRp2N+bP8Ncq4pMCQnWpoaW5gYJiWnpZokpRlYmpgamCRZJCaapZiaJZsnWzZZpDUEMjLsCfzBwAiFID4/Q0hqcUlmXnq8c0ZiXl5qDgMDABX7JNk=',
+    '007eJxTYAjKfOh8SINtT5GAwuO2397ZzJrlWRcs//qcfmm2gf+B41oFhuRES1NjCxPDpOS0VJOkNANLE1MDkySLxESzFFOzZPPkx+8s0xoCGRn61k1gYmSAQBCfnyEktbgkMy893jkjMS8vNYeBAQDCriRr',
   channelName: 'Testing_Channel',
 };
 
@@ -58,20 +58,20 @@ const HomeScreen = () => {
 
   const init = async () => {
     engine.current = await createAgoraRtcEngine();
-    engine.current.initialize({
+    engine.current?.initialize({
       appId: config.appId,
       channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
     });
 
     engine.current
-      .getMediaEngine()
+      ?.getMediaEngine()
       .setExternalVideoSource(true, false, ExternalVideoSourceType.VideoFrame);
 
-    engine.current.setClientRole(ClientRoleType.ClientRoleBroadcaster);
-    engine.current.enableVideo();
-    engine.current.startPreview();
+    engine.current?.setClientRole(ClientRoleType.ClientRoleBroadcaster);
+    engine.current?.enableVideo();
+    engine.current?.startPreview();
 
-    engine.current.addListener('onUserJoined', (connection, uid) => {
+    engine.current?.addListener('onUserJoined', (connection, uid) => {
       console.log('UserJoined', connection, uid);
 
       if (peerIds.indexOf(uid) === -1) {
@@ -79,27 +79,57 @@ const HomeScreen = () => {
       }
     });
 
-    engine.current.addListener('onUserOffline', (connection, uid) => {
+    engine.current?.addListener('onUserOffline', (connection, uid) => {
       console.log('UserOffline', connection, uid);
       setPeerIds(prev => prev.filter(id => id !== uid));
     });
 
-    engine.current.addListener('onJoinChannelSuccess', connection => {
+    engine.current?.addListener('onJoinChannelSuccess', connection => {
       console.log('coming here');
 
       console.log('JoinChannelSuccess', connection);
       setJoined(true);
     });
 
-    engine.current.addListener('onError', error => {
+    engine.current?.addListener('onError', error => {
       Alert.alert(`Getting an error ${error}`);
     });
+
+    engine.current.addListener(
+      'onFirstLocalVideoFrame',
+      (uid, width, height, elapsed) => {
+        console.log(
+          'First local video frame received:',
+          uid,
+          width,
+          height,
+          elapsed,
+        );
+      },
+    );
+
+    engine.current?.addListener(
+      'onFirstRemoteVideoFrame',
+      (uid, width, height, elapsed) => {
+        console.log(
+          'First remote video frame received:',
+          uid,
+          width,
+          height,
+          elapsed,
+        );
+      },
+    );
   };
 
   const startCall = async () => {
     await init();
-    await engine.current?.joinChannel(config.token, config.channelName, 0, {});
-    setVideoTrackId(engine.current?.createCustomVideoTrack());
+    const videoTrackID = engine.current?.createCustomVideoTrack();
+    await engine.current?.joinChannel(config.token, config.channelName, 0, {
+      customVideoTrackId: videoTrackID,
+      publishCustomVideoTrack: true,
+    });
+    setVideoTrackId(videoTrackId);
   };
 
   const endCall = async () => {
@@ -162,10 +192,21 @@ const HomeScreen = () => {
   const renderVideos = () => {
     return (
       <View style={styles.fullView}>
+        <Camera
+          ref={camera}
+          frameProcessor={frameProcessor}
+          format={format}
+          style={{height: 500}}
+          pixelFormat="rgb"
+          device={device}
+          isActive={true}
+          video={true}
+          audio={true}
+        />
         <RtcSurfaceView
           style={styles.max}
           canvas={{
-            uid: 0,
+            uid: videoTrackId,
           }}
         />
         {renderRemoteVideos()}
@@ -174,7 +215,6 @@ const HomeScreen = () => {
   };
 
   const renderRemoteVideos = () => {
-    console.log('renderRemoteVideos', peerIds);
     return (
       <ScrollView
         style={styles.remoteContainer}
@@ -195,21 +235,32 @@ const HomeScreen = () => {
     );
   };
 
-  const frameProcessor = useFrameProcessor(frame => {
+  const pushVideoFrame = (frame: any) => {
     'worklet';
     if (frame.pixelFormat === 'rgb') {
       const buffer = frame.toArrayBuffer();
       const data = new Uint8Array(buffer);
 
-      engine.current?.getMediaEngine().pushVideoFrame({
-        type: VideoBufferType.VideoBufferRawData,
-        format: VideoPixelFormat.VideoPixelRgba,
-        buffer: data,
-        videoTrackId: videoTrackId,
-        stride: frame.width,
-        height: frame.height,
-      } as any);
+      console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
+      if (engine.current) {
+        const mediaEngine = engine.current?.getMediaEngine();
+        if (mediaEngine) {
+          mediaEngine?.pushVideoFrame({
+            type: VideoBufferType.VideoBufferRawData,
+            format: VideoPixelFormat.VideoPixelRgba,
+            buffer: data,
+            videoTrackId: videoTrackId,
+            stride: frame.width,
+            height: frame.height,
+          } as any);
+        }
+      }
     }
+  };
+
+  const frameProcessor = useFrameProcessor(frame => {
+    'worklet';
+    pushVideoFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -236,17 +287,6 @@ const HomeScreen = () => {
       ) : (
         <View style={{flex: 1}}>
           {renderVideos()}
-          <Camera
-            ref={camera}
-            frameProcessor={frameProcessor}
-            format={format}
-            style={{height: 500}}
-            pixelFormat="rgb"
-            device={device}
-            isActive={true}
-            video={true}
-            audio={true}
-          />
 
           <View
             style={{
