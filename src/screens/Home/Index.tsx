@@ -34,17 +34,19 @@ import {
   requestCameraAndAudioPermission,
   requestCameraAndAudioPermissionIOS,
 } from '../../helpers/utils';
+import {useSharedValue} from 'react-native-worklets-core';
 
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYAjKfOh8SINtT5GAwuO2397ZzJrlWRcs//qcfmm2gf+B41oFhuRES1NjCxPDpOS0VJOkNANLE1MDkySLxESzFFOzZPPkx+8s0xoCGRn61k1gYmSAQBCfnyEktbgkMy893jkjMS8vNYeBAQDCriRr',
+    '007eJxTYPhd7ayiemmiapyz3JNTDOlzHc4ITptzO96C8bD5g2Xp8nsUGJITLU2NLUwMk5LTUk2S0gwsTUwNTJIsEhPNUkzNks2T1fxt0hoCGRn4HJYzMjJAIIjPzxCSWlySmZce75yRmJeXmsPAAAA6iyGc',
   channelName: 'Testing_Channel',
 };
 
 const HomeScreen = () => {
   let engine = useRef<IRtcEngine | null>(null);
   const camera = useRef<Camera>(null);
+  const latestFrame = useSharedValue(new Uint8Array(0));
 
   // New state variables for mute status
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
@@ -120,6 +122,12 @@ const HomeScreen = () => {
         );
       },
     );
+
+    setInterval(() => {
+      console.log(
+        `latestFrame at 0,0: RGB(${latestFrame.value[0]}, ${latestFrame.value[1]}, ${latestFrame.value[2]})`,
+      );
+    });
   };
 
   const startCall = async () => {
@@ -235,32 +243,14 @@ const HomeScreen = () => {
     );
   };
 
-  const pushVideoFrame = (frame: any) => {
+  const frameProcessor = useFrameProcessor(frame => {
     'worklet';
     if (frame.pixelFormat === 'rgb') {
       const buffer = frame.toArrayBuffer();
       const data = new Uint8Array(buffer);
-
+      latestFrame.value = data;
       console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
-      if (engine.current) {
-        const mediaEngine = engine.current?.getMediaEngine();
-        if (mediaEngine) {
-          mediaEngine?.pushVideoFrame({
-            type: VideoBufferType.VideoBufferRawData,
-            format: VideoPixelFormat.VideoPixelRgba,
-            buffer: data,
-            videoTrackId: videoTrackId,
-            stride: frame.width,
-            height: frame.height,
-          } as any);
-        }
-      }
     }
-  };
-
-  const frameProcessor = useFrameProcessor(frame => {
-    'worklet';
-    pushVideoFrame(frame);
   }, []);
 
   useEffect(() => {
