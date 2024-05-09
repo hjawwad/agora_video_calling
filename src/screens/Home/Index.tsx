@@ -34,19 +34,20 @@ import {
   requestCameraAndAudioPermission,
   requestCameraAndAudioPermissionIOS,
 } from '../../helpers/utils';
+import {useSharedValue} from 'react-native-worklets-core';
 
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYAjKfOh8SINtT5GAwuO2397ZzJrlWRcs//qcfmm2gf+B41oFhuRES1NjCxPDpOS0VJOkNANLE1MDkySLxESzFFOzZPPkx+8s0xoCGRn61k1gYmSAQBCfnyEktbgkMy893jkjMS8vNYeBAQDCriRr',
+    '007eJxTYDjUGPrp4VVFSx/59ZzRPd2bb/y7EGT0cPLqO+e32//IndelwJCcaGlqbGFimJSclmqSlGZgaWJqYJJkkZholmJqlmyefCbDOq0hkJGh7+NBRkYGCATx+RlCUotLMvPS450zEvPyUnMYGADnGyd/',
   channelName: 'Testing_Channel',
 };
 
 const HomeScreen = () => {
   let engine = useRef<IRtcEngine | null>(null);
   const camera = useRef<Camera>(null);
+  let latestFrame = useRef<Uint8Array>();
 
-  // New state variables for mute status
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
   const [record, setRecord] = useState<string>('start');
@@ -120,6 +121,13 @@ const HomeScreen = () => {
         );
       },
     );
+
+    ////// Using useRef it's value is getting undefine /////////
+    setInterval(() => {
+      if (latestFrame) {
+        console.log('latestFrame = ', latestFrame.current);
+      }
+    }, 100);
   };
 
   const startCall = async () => {
@@ -196,7 +204,7 @@ const HomeScreen = () => {
           ref={camera}
           frameProcessor={frameProcessor}
           format={format}
-          style={{height: 500}}
+          style={styles.max}
           pixelFormat="rgb"
           device={device}
           isActive={true}
@@ -235,33 +243,19 @@ const HomeScreen = () => {
     );
   };
 
-  const pushVideoFrame = (frame: any) => {
-    'worklet';
-    if (frame.pixelFormat === 'rgb') {
-      const buffer = frame.toArrayBuffer();
-      const data = new Uint8Array(buffer);
+  const frameProcessor = useFrameProcessor(
+    frame => {
+      'worklet';
+      if (frame.pixelFormat === 'rgb') {
+        const buffer = frame.toArrayBuffer();
+        const data = new Uint8Array(buffer);
 
-      console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
-      if (engine.current) {
-        const mediaEngine = engine.current?.getMediaEngine();
-        if (mediaEngine) {
-          mediaEngine?.pushVideoFrame({
-            type: VideoBufferType.VideoBufferRawData,
-            format: VideoPixelFormat.VideoPixelRgba,
-            buffer: data,
-            videoTrackId: videoTrackId,
-            stride: frame.width,
-            height: frame.height,
-          } as any);
-        }
+        console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
+        latestFrame.current = data;
       }
-    }
-  };
-
-  const frameProcessor = useFrameProcessor(frame => {
-    'worklet';
-    pushVideoFrame(frame);
-  }, []);
+    },
+    [latestFrame],
+  );
 
   useEffect(() => {
     if (Platform.OS === 'android') {
