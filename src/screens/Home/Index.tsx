@@ -38,7 +38,7 @@ import {
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYAjKfOh8SINtT5GAwuO2397ZzJrlWRcs//qcfmm2gf+B41oFhuRES1NjCxPDpOS0VJOkNANLE1MDkySLxESzFFOzZPPkx+8s0xoCGRn61k1gYmSAQBCfnyEktbgkMy893jkjMS8vNYeBAQDCriRr',
+    '007eJxTYPhd7ayiemmiapyz3JNTDOlzHc4ITptzO96C8bD5g2Xp8nsUGJITLU2NLUwMk5LTUk2S0gwsTUwNTJIsEhPNUkzNks2T1fxt0hoCGRn4HJYzMjJAIIjPzxCSWlySmZce75yRmJeXmsPAAAA6iyGc',
   channelName: 'Testing_Channel',
 };
 
@@ -235,32 +235,18 @@ const HomeScreen = () => {
     );
   };
 
-  const pushVideoFrame = (frame: any) => {
+  const pushVideoFrame = Worklets.createRunOnJS((frame: Uint8Array) => {
+    console.log(`Pixel at 0,0: RGB(${frame[0]}, ${frame[1]}, ${frame[2]})`);
+  });
+
+  const frameProcessor = useFrameProcessor(frame => {
     'worklet';
     if (frame.pixelFormat === 'rgb') {
       const buffer = frame.toArrayBuffer();
       const data = new Uint8Array(buffer);
 
-      console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
-      if (engine.current) {
-        const mediaEngine = engine.current?.getMediaEngine();
-        if (mediaEngine) {
-          mediaEngine?.pushVideoFrame({
-            type: VideoBufferType.VideoBufferRawData,
-            format: VideoPixelFormat.VideoPixelRgba,
-            buffer: data,
-            videoTrackId: videoTrackId,
-            stride: frame.width,
-            height: frame.height,
-          } as any);
-        }
-      }
+      pushVideoFrame(data);
     }
-  };
-
-  const frameProcessor = useFrameProcessor(frame => {
-    'worklet';
-    pushVideoFrame(frame);
   }, []);
 
   useEffect(() => {
