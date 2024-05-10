@@ -48,6 +48,8 @@ const HomeScreen = () => {
   const camera = useRef<Camera>(null);
   let latestFrame = useRef<Uint8Array>();
 
+  const sharedlatestFrame = useSharedValue(new Uint8Array(0));
+
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
   const [record, setRecord] = useState<string>('start');
@@ -124,9 +126,15 @@ const HomeScreen = () => {
 
     ////// Using useRef it's value is getting undefine /////////
     setInterval(() => {
-      if (latestFrame) {
-        console.log('latestFrame = ', latestFrame.current);
-      }
+      //uncomment for useReff
+
+      // if (latestFrame) {
+      //   console.log('latestFrame = ', latestFrame.current);
+      // }
+
+      console.log(
+        `latestFrame at 0,0: RGB(${sharedlatestFrame.value[0]}, ${sharedlatestFrame.value[1]}, ${sharedlatestFrame.value[2]})`,
+      );
     }, 100);
   };
 
@@ -243,19 +251,17 @@ const HomeScreen = () => {
     );
   };
 
-  const frameProcessor = useFrameProcessor(
-    frame => {
-      'worklet';
-      if (frame.pixelFormat === 'rgb') {
-        const buffer = frame.toArrayBuffer();
-        const data = new Uint8Array(buffer);
+  const frameProcessor = useFrameProcessor(frame => {
+    'worklet';
+    if (frame.pixelFormat === 'rgb') {
+      const buffer = frame.toArrayBuffer();
+      const data = new Uint8Array(buffer);
 
-        console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
-        latestFrame.current = data;
-      }
-    },
-    [latestFrame],
-  );
+      console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
+      // latestFrame.current = data;
+      sharedlatestFrame.value = data;
+    }
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
