@@ -20,6 +20,7 @@ import {
 
 import {
   Camera,
+  FrameInternal,
   useCameraDevice,
   useCameraFormat,
   useFrameProcessor,
@@ -39,19 +40,19 @@ import {useSharedValue} from 'react-native-worklets-core';
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYDjUGPrp4VVFSx/59ZzRPd2bb/y7EGT0cPLqO+e32//IndelwJCcaGlqbGFimJSclmqSlGZgaWJqYJJkkZholmJqlmyefCbDOq0hkJGh7+NBRkYGCATx+RlCUotLMvPS450zEvPyUnMYGADnGyd/',
+    '007eJxTYAjYvMLg/jZN+0PzcieySHAIf0hzXhKkZRL9bOMxPuHrp2sVGJITLU2NLUwMk5LTUk2S0gwsTUwNTJIsEhPNUkzNks2THTNc0hoCGRnMXERZGRkgEMTnZwhJLS7JzEuPd85IzMtLzWFgAAApjCFJ',
   channelName: 'Testing_Channel',
 };
 
 const HomeScreen = () => {
   let engine = useRef<IRtcEngine | null>(null);
   const camera = useRef<Camera>(null);
-  let latestFrame = useRef<Uint8Array>();
 
   const sharedlatestFrame = useSharedValue(new Uint8Array(0));
 
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
+
   const [record, setRecord] = useState<string>('start');
   const [peerIds, setPeerIds] = useState<number[]>([]);
   const [isJoined, setJoined] = useState<boolean>(false);
@@ -123,19 +124,6 @@ const HomeScreen = () => {
         );
       },
     );
-
-    ////// Using useRef it's value is getting undefine /////////
-    setInterval(() => {
-      //uncomment for useReff
-
-      // if (latestFrame) {
-      //   console.log('latestFrame = ', latestFrame.current);
-      // }
-
-      console.log(
-        `latestFrame at 0,0: RGB(${sharedlatestFrame.value[0]}, ${sharedlatestFrame.value[1]}, ${sharedlatestFrame.value[2]})`,
-      );
-    }, 100);
   };
 
   const startCall = async () => {
@@ -251,17 +239,35 @@ const HomeScreen = () => {
     );
   };
 
-  const frameProcessor = useFrameProcessor(frame => {
-    'worklet';
+  const [count, setCount] = useState<number>(0);
+  const [buffer, setBuffer] = useState<Uint8Array>();
+
+  const onFaceDetected = Worklets.createRunOnJS((frame: FrameInternal) => {
     if (frame.pixelFormat === 'rgb') {
       const buffer = frame.toArrayBuffer();
       const data = new Uint8Array(buffer);
-
-      console.log(`Pixel at 0,0: RGB(${data[0]}, ${data[1]}, ${data[2]})`);
-      // latestFrame.current = data;
-      sharedlatestFrame.value = data;
+      setBuffer(data);
+      frame.decrementRefCount();
     }
+  });
+
+  const frameProcessor = useFrameProcessor((frame: any) => {
+    'worklet';
+    frame.incrementRefCount();
+    onFaceDetected(frame);
   }, []);
+
+  useEffect(() => {
+    if (count === 0 && buffer) {
+      setCount((count + 1) % 5);
+      console.log(
+        `Pixel data at 0,0: RGB(${buffer[0]}, ${buffer[1]}, ${buffer[2]})`,
+      );
+    } else {
+      console.log({count});
+      setCount((count + 1) % 5);
+    }
+  }, [buffer]);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -271,8 +277,19 @@ const HomeScreen = () => {
     }
   }, []);
   return (
-    <View>
-      {!isJoined ? (
+    <View style={{flex: 1}}>
+      <Camera
+        ref={camera}
+        frameProcessor={frameProcessor}
+        format={format}
+        style={styles.max}
+        pixelFormat="rgb"
+        device={device}
+        isActive={true}
+        video={true}
+        audio={true}
+      />
+      {/* {!isJoined ? (
         <View style={styles.container}>
           <TouchableOpacity onPress={() => startCall()}>
             <Text style={styles.buttonText}>Join Room</Text>
@@ -323,7 +340,7 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      )} */}
     </View>
   );
 };
