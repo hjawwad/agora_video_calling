@@ -8,19 +8,23 @@ import {
 } from 'react-native';
 import React, {useEffect, useRef, useState} from 'react';
 import {
+  AudienceLatencyLevelType,
   ChannelProfileType,
   ClientRoleType,
   createAgoraRtcEngine,
+  EglContextType,
   ExternalVideoSourceType,
   IRtcEngine,
   RtcSurfaceView,
   VideoBufferType,
   VideoPixelFormat,
+  VideoStreamType,
 } from 'react-native-agora';
 
 import {
   Camera,
   FrameInternal,
+  runAtTargetFps,
   useCameraDevice,
   useCameraFormat,
   useFrameProcessor,
@@ -35,20 +39,20 @@ import {
   requestCameraAndAudioPermission,
   requestCameraAndAudioPermissionIOS,
 } from '../../helpers/utils';
-import {useSharedValue} from 'react-native-worklets-core';
+import {createResizePlugin} from 'vision-camera-resize-plugin';
 
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYAjYvMLg/jZN+0PzcieySHAIf0hzXhKkZRL9bOMxPuHrp2sVGJITLU2NLUwMk5LTUk2S0gwsTUwNTJIsEhPNUkzNks2THTNc0hoCGRnMXERZGRkgEMTnZwhJLS7JzEuPd85IzMtLzWFgAAApjCFJ',
+    '007eJxTYHhTIfehd1nLVL75uQus9u2a4ah0nqF+8/7TF/ZYd2lPny2pwJCcaGlqbGFimJSclmqSlGZgaWJqYJJkkZholmJqlmye/Hu/a1pDICPDFNMEVkYGCATx+RlCUotLMvPS450zEvPyUnMYGAA/mCUa',
   channelName: 'Testing_Channel',
 };
 
 const HomeScreen = () => {
   let engine = useRef<IRtcEngine | null>(null);
   const camera = useRef<Camera>(null);
-
-  const sharedlatestFrame = useSharedValue(new Uint8Array(0));
+  const customVideoTrackId = useRef<number>();
+  const {resize} = createResizePlugin();
 
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
@@ -66,14 +70,12 @@ const HomeScreen = () => {
       appId: config.appId,
       channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
     });
-
     engine.current
       ?.getMediaEngine()
       .setExternalVideoSource(true, false, ExternalVideoSourceType.VideoFrame);
 
-    engine.current?.setClientRole(ClientRoleType.ClientRoleBroadcaster);
     engine.current?.enableVideo();
-    engine.current?.startPreview();
+    // engine.current?.startPreview();
 
     engine.current?.addListener('onUserJoined', (connection, uid) => {
       console.log('UserJoined', connection, uid);
@@ -128,12 +130,18 @@ const HomeScreen = () => {
 
   const startCall = async () => {
     await init();
-    const videoTrackID = engine.current?.createCustomVideoTrack();
-    await engine.current?.joinChannel(config.token, config.channelName, 0, {
-      customVideoTrackId: videoTrackID,
-      publishCustomVideoTrack: true,
-    });
-    setVideoTrackId(videoTrackId);
+    customVideoTrackId.current = engine.current?.createCustomVideoTrack();
+    console.log('customVideoTrackId.current', customVideoTrackId.current);
+    const response = await engine.current?.joinChannel(
+      config.token,
+      config.channelName,
+      Math.floor(Math.random() * 1000),
+      {
+        publishCustomVideoTrack: true,
+        customVideoTrackId: customVideoTrackId.current,
+      },
+    );
+    console.log({response});
   };
 
   const endCall = async () => {
@@ -201,7 +209,8 @@ const HomeScreen = () => {
           frameProcessor={frameProcessor}
           format={format}
           style={styles.max}
-          pixelFormat="rgb"
+          fps={24}
+          pixelFormat="yuv"
           device={device}
           isActive={true}
           video={true}
@@ -239,35 +248,62 @@ const HomeScreen = () => {
     );
   };
 
-  const [count, setCount] = useState<number>(0);
-  const [buffer, setBuffer] = useState<Uint8Array>();
+  const pushVideoFrame = Worklets.createRunOnJS(
+    async (
+      resized: any,
 
-  const onFaceDetected = Worklets.createRunOnJS((frame: FrameInternal) => {
-    if (frame.pixelFormat === 'rgb') {
-      const buffer = frame.toArrayBuffer();
-      const data = new Uint8Array(buffer);
-      setBuffer(data);
+      frame: FrameInternal,
+    ) => {
+      if (engine.current && customVideoTrackId.current) {
+        const mediaEngine = engine.current?.getMediaEngine();
+        if (mediaEngine) {
+          try {
+            console.log(
+              `Pixel at 0,0: RGB(${resized[0]}, ${resized[1]}, ${resized[2]})`,
+              `${customVideoTrackId.current}`,
+            );
+
+            const response = await mediaEngine?.pushVideoFrame(
+              {
+                type: VideoBufferType.VideoBufferRawData,
+                format: VideoPixelFormat.VideoPixelRgba,
+                buffer: resized,
+                stride: 50,
+                height: 100,
+              },
+              customVideoTrackId.current,
+            );
+
+            console.log('Push video frame response:', response);
+          } catch (error) {
+            console.error('Error pushing video frame:', error);
+          }
+        }
+      }
       frame.decrementRefCount();
-    }
-  });
+    },
+  );
 
   const frameProcessor = useFrameProcessor((frame: any) => {
     'worklet';
-    frame.incrementRefCount();
-    onFaceDetected(frame);
-  }, []);
 
-  useEffect(() => {
-    if (count === 0 && buffer) {
-      setCount((count + 1) % 5);
-      console.log(
-        `Pixel data at 0,0: RGB(${buffer[0]}, ${buffer[1]}, ${buffer[2]})`,
-      );
-    } else {
-      console.log({count});
-      setCount((count + 1) % 5);
-    }
-  }, [buffer]);
+    runAtTargetFps(20, () => {
+      'worklet';
+      if (frame.pixelFormat === 'yuv') {
+        const resized = resize(frame, {
+          scale: {
+            width: 50,
+            height: 100,
+          },
+          pixelFormat: 'rgba',
+          dataType: 'uint8',
+        });
+
+        frame.incrementRefCount();
+        pushVideoFrame(resized!, frame);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -278,18 +314,7 @@ const HomeScreen = () => {
   }, []);
   return (
     <View style={{flex: 1}}>
-      <Camera
-        ref={camera}
-        frameProcessor={frameProcessor}
-        format={format}
-        style={styles.max}
-        pixelFormat="rgb"
-        device={device}
-        isActive={true}
-        video={true}
-        audio={true}
-      />
-      {/* {!isJoined ? (
+      {!isJoined ? (
         <View style={styles.container}>
           <TouchableOpacity onPress={() => startCall()}>
             <Text style={styles.buttonText}>Join Room</Text>
@@ -340,7 +365,7 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-      )} */}
+      )}
     </View>
   );
 };
