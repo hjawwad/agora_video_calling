@@ -18,6 +18,7 @@ import {
   RtcSurfaceView,
   VideoBufferType,
   VideoPixelFormat,
+  VideoSourceType,
   VideoStreamType,
 } from 'react-native-agora';
 
@@ -44,7 +45,7 @@ import {createResizePlugin} from 'vision-camera-resize-plugin';
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYHhTIfehd1nLVL75uQus9u2a4ah0nqF+8/7TF/ZYd2lPny2pwJCcaGlqbGFimJSclmqSlGZgaWJqYJJkkZholmJqlmye/Hu/a1pDICPDFNMEVkYGCATx+RlCUotLMvPS450zEvPyUnMYGAA/mCUa',
+    '007eJxTYNhRYRZpfrryTb1h8sPEY8t/sshvYo4LadAK6dzx4X5YYqwCQ3KipamxhYlhUnJaqklSmoGliamBSZJFYqJZiqlZsnmyu6J7WkMgI8OvRBMGRigE8fkZQlKLSzLz0uOdMxLz8lJzGBgAuCojQQ==',
   channelName: 'Testing_Channel',
 };
 
@@ -70,12 +71,16 @@ const HomeScreen = () => {
       appId: config.appId,
       channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
     });
+
     engine.current
       ?.getMediaEngine()
       .setExternalVideoSource(true, false, ExternalVideoSourceType.VideoFrame);
 
+    engine.current.setClientRole(ClientRoleType.ClientRoleBroadcaster);
+
     engine.current?.enableVideo();
-    // engine.current?.startPreview();
+    engine.current?.enableAudio();
+    engine.current?.startPreview();
 
     engine.current?.addListener('onUserJoined', (connection, uid) => {
       console.log('UserJoined', connection, uid);
@@ -128,14 +133,17 @@ const HomeScreen = () => {
     );
   };
 
+  const uid = 649;
+
   const startCall = async () => {
     await init();
     customVideoTrackId.current = engine.current?.createCustomVideoTrack();
+
     console.log('customVideoTrackId.current', customVideoTrackId.current);
     const response = await engine.current?.joinChannel(
       config.token,
       config.channelName,
-      Math.floor(Math.random() * 1000),
+      uid,
       {
         publishCustomVideoTrack: true,
         customVideoTrackId: customVideoTrackId.current,
@@ -208,9 +216,9 @@ const HomeScreen = () => {
           ref={camera}
           frameProcessor={frameProcessor}
           format={format}
-          style={styles.max}
           fps={24}
           pixelFormat="yuv"
+          preview={false}
           device={device}
           isActive={true}
           video={true}
@@ -219,7 +227,12 @@ const HomeScreen = () => {
         <RtcSurfaceView
           style={styles.max}
           canvas={{
-            uid: videoTrackId,
+            uid: 649,
+            sourceType: VideoSourceType.VideoSourceCustom,
+          }}
+          connection={{
+            localUid: uid,
+            channelId: config.channelName,
           }}
         />
         {renderRemoteVideos()}
@@ -228,12 +241,14 @@ const HomeScreen = () => {
   };
 
   const renderRemoteVideos = () => {
+    console.log({peerIds});
     return (
       <ScrollView
         style={styles.remoteContainer}
         contentContainerStyle={styles.padding}
         horizontal={true}>
         {peerIds.map(id => {
+          console.log('ID Here', {id});
           return (
             <RtcSurfaceView
               style={styles.remote}
@@ -249,21 +264,12 @@ const HomeScreen = () => {
   };
 
   const pushVideoFrame = Worklets.createRunOnJS(
-    async (
-      resized: any,
-
-      frame: FrameInternal,
-    ) => {
+    async (resized: any, frame: FrameInternal) => {
       if (engine.current && customVideoTrackId.current) {
         const mediaEngine = engine.current?.getMediaEngine();
         if (mediaEngine) {
           try {
-            console.log(
-              `Pixel at 0,0: RGB(${resized[0]}, ${resized[1]}, ${resized[2]})`,
-              `${customVideoTrackId.current}`,
-            );
-
-            const response = await mediaEngine?.pushVideoFrame(
+            await mediaEngine?.pushVideoFrame(
               {
                 type: VideoBufferType.VideoBufferRawData,
                 format: VideoPixelFormat.VideoPixelRgba,
@@ -273,8 +279,6 @@ const HomeScreen = () => {
               },
               customVideoTrackId.current,
             );
-
-            console.log('Push video frame response:', response);
           } catch (error) {
             console.error('Error pushing video frame:', error);
           }
