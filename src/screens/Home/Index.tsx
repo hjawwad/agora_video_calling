@@ -45,7 +45,7 @@ import {createResizePlugin} from 'vision-camera-resize-plugin';
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYNhRYRZpfrryTb1h8sPEY8t/sshvYo4LadAK6dzx4X5YYqwCQ3KipamxhYlhUnJaqklSmoGliamBSZJFYqJZiqlZsnmyu6J7WkMgI8OvRBMGRigE8fkZQlKLSzLz0uOdMxLz8lJzGBgAuCojQQ==',
+    '007eJxTYGDcXjDjQM9bPkanLdWz5V89cMrcKMy/VUKx+2Oa8N+TickKDMmJlqbGFiaGSclpqSZJaQaWJqYGJkkWiYlmKaZmyebJYZ990xoCGRlazn9nYIRCEJ+fISS1uCQzLz3eOSMxLy81h4EBALXtJD4=',
   channelName: 'Testing_Channel',
 };
 
@@ -61,7 +61,6 @@ const HomeScreen = () => {
   const [record, setRecord] = useState<string>('start');
   const [peerIds, setPeerIds] = useState<number[]>([]);
   const [isJoined, setJoined] = useState<boolean>(false);
-  const [videoTrackId, setVideoTrackId] = useState<number>();
 
   const device: any = useCameraDevice('front');
 
@@ -71,6 +70,9 @@ const HomeScreen = () => {
       appId: config.appId,
       channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
     });
+
+    // engine.current?.getAudioDeviceInfo();
+    // engine.current?.getAudioDeviceManager().enumerateRecordingDevices();
 
     engine.current
       ?.getMediaEngine()
@@ -155,7 +157,7 @@ const HomeScreen = () => {
   const endCall = async () => {
     engine.current?.leaveChannel();
     engine.current?.removeAllListeners();
-    engine.current?.destroyCustomVideoTrack(videoTrackId!);
+    engine.current?.destroyCustomVideoTrack(customVideoTrackId.current!);
     try {
       engine.current?.release();
     } catch (e) {
@@ -265,36 +267,18 @@ const HomeScreen = () => {
 
   const pushVideoFrame = Worklets.createRunOnJS(
     async (resized: any, frame: FrameInternal) => {
-      if (engine.current && customVideoTrackId.current) {
-        const mediaEngine = engine.current?.getMediaEngine();
-        if (mediaEngine) {
-          try {
-            await mediaEngine?.pushVideoFrame(
-              {
-                type: VideoBufferType.VideoBufferRawData,
-                format: VideoPixelFormat.VideoPixelRgba,
-                buffer: resized,
-                stride: 50,
-                height: 100,
-              },
-              customVideoTrackId.current,
-            );
-          } catch (error) {
-            console.error('Error pushing video frame:', error);
-          }
-        }
-      }
+      console.log(`Pixel in RGB ${resized[0]}, ${resized[1]}, ${resized[2]}`);
       frame.decrementRefCount();
     },
   );
 
   const frameProcessor = useFrameProcessor((frame: any) => {
     'worklet';
-
     runAtTargetFps(20, () => {
       'worklet';
+      const start = performance.now();
       if (frame.pixelFormat === 'yuv') {
-        const resized = resize(frame, {
+        const buffer = resize(frame, {
           scale: {
             width: 50,
             height: 100,
@@ -304,7 +288,11 @@ const HomeScreen = () => {
         });
 
         frame.incrementRefCount();
-        pushVideoFrame(resized!, frame);
+        pushVideoFrame(buffer!, frame);
+        const end = performance.now();
+
+        const diff = (end - start).toFixed(2);
+        console.log(`Push Video Frames took ${diff}ms!`);
       }
     });
   }, []);
@@ -326,8 +314,8 @@ const HomeScreen = () => {
           <TouchableOpacity onPress={() => endCall()}>
             <Text style={styles.buttonText}>End Room</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => console.log('Record Video pressed')}>
-            <Text style={styles.buttonText}>Record Video</Text>
+          <TouchableOpacity onPress={() => {}}>
+            <Text style={styles.buttonText}>Record Video Chunks</Text>
           </TouchableOpacity>
         </View>
       ) : (
