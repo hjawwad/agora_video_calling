@@ -5,22 +5,26 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Button,
 } from 'react-native';
 import React, {useEffect, useRef, useState} from 'react';
-import {
-  AudienceLatencyLevelType,
-  ChannelProfileType,
-  ClientRoleType,
-  createAgoraRtcEngine,
-  EglContextType,
-  ExternalVideoSourceType,
-  IRtcEngine,
-  RtcSurfaceView,
-  VideoBufferType,
-  VideoPixelFormat,
-  VideoSourceType,
-  VideoStreamType,
-} from 'react-native-agora';
+// import {
+//   AudioFileRecordingType,
+//   AudioRecordingQualityType,
+//   ChannelProfileType,
+//   ClientRoleType,
+//   createAgoraRtcEngine,
+//   ExternalVideoSourceType,
+//   IRtcEngine,
+//   RtcSurfaceView,
+//   VideoBufferType,
+//   VideoPixelFormat,
+//   VideoSourceType,
+// } from 'react-native-agora';
+
+import RNFS from 'react-native-fs';
+import {NativeModules} from 'react-native';
+const {CalendarModule} = NativeModules;
 
 import {
   Camera,
@@ -41,16 +45,18 @@ import {
   requestCameraAndAudioPermissionIOS,
 } from '../../helpers/utils';
 import {createResizePlugin} from 'vision-camera-resize-plugin';
+import {recordFrame} from './RecordFramesPlugin';
+import {sendFrame} from './SendFrameToAgoraPlugin';
 
 const config = {
   appId: 'ca953841bcfe4bf094504b8aa6d56c7c',
   token:
-    '007eJxTYNhRYRZpfrryTb1h8sPEY8t/sshvYo4LadAK6dzx4X5YYqwCQ3KipamxhYlhUnJaqklSmoGliamBSZJFYqJZiqlZsnmyu6J7WkMgI8OvRBMGRigE8fkZQlKLSzLz0uOdMxLz8lJzGBgAuCojQQ==',
+    '007eJxTYPh/rjBvsr5QAt/Szfdqub8lcc56Zmvf9iLGZrtv4YznN58pMCQnWpoaW5gYJiWnpZokpRlYmpgamCRZJCaapZiaJZsne/oEpDUEMjKUblnKwAiFID4/Q0hqcUlmXnq8c0ZiXl5qDgMDACspJOs=',
   channelName: 'Testing_Channel',
 };
 
 const HomeScreen = () => {
-  let engine = useRef<IRtcEngine | null>(null);
+  // let engine = useRef<IRtcEngine | null>(null);
   const camera = useRef<Camera>(null);
   const customVideoTrackId = useRef<number>();
   const {resize} = createResizePlugin();
@@ -61,235 +67,256 @@ const HomeScreen = () => {
   const [record, setRecord] = useState<string>('start');
   const [peerIds, setPeerIds] = useState<number[]>([]);
   const [isJoined, setJoined] = useState<boolean>(false);
-  const [videoTrackId, setVideoTrackId] = useState<number>();
+
+  const [documentsFolder, setDocumentsFolder] = useState<string>('');
 
   const device: any = useCameraDevice('front');
 
-  const init = async () => {
-    engine.current = await createAgoraRtcEngine();
-    engine.current?.initialize({
-      appId: config.appId,
-      channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
-    });
+  // const init = async () => {
+  //   engine.current = await createAgoraRtcEngine();
+  //   engine.current?.initialize({
+  //     appId: config.appId,
+  //     channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
+  //   });
 
-    engine.current
-      ?.getMediaEngine()
-      .setExternalVideoSource(true, false, ExternalVideoSourceType.VideoFrame);
+  //   engine.current
+  //     ?.getMediaEngine()
+  //     .setExternalVideoSource(true, false, ExternalVideoSourceType.VideoFrame);
 
-    engine.current.setClientRole(ClientRoleType.ClientRoleBroadcaster);
+  //   engine.current.setClientRole(ClientRoleType.ClientRoleBroadcaster);
 
-    engine.current?.enableVideo();
-    engine.current?.enableAudio();
-    engine.current?.startPreview();
+  //   engine.current?.enableVideo();
+  //   engine.current?.enableAudio();
+  //   engine.current?.startPreview();
 
-    engine.current?.addListener('onUserJoined', (connection, uid) => {
-      console.log('UserJoined', connection, uid);
+  //   engine.current?.addListener('onUserJoined', (connection, uid) => {
+  //     console.log('UserJoined', connection, uid);
 
-      if (peerIds.indexOf(uid) === -1) {
-        setPeerIds(prev => [...prev, uid]);
-      }
-    });
+  //     if (peerIds.indexOf(uid) === -1) {
+  //       setPeerIds(prev => [...prev, uid]);
+  //     }
+  //   });
 
-    engine.current?.addListener('onUserOffline', (connection, uid) => {
-      console.log('UserOffline', connection, uid);
-      setPeerIds(prev => prev.filter(id => id !== uid));
-    });
+  //   engine.current?.addListener('onUserOffline', (connection, uid) => {
+  //     console.log('UserOffline', connection, uid);
+  //     setPeerIds(prev => prev.filter(id => id !== uid));
+  //   });
 
-    engine.current?.addListener('onJoinChannelSuccess', connection => {
-      console.log('coming here');
+  //   engine.current?.addListener('onJoinChannelSuccess', connection => {
+  //     console.log('coming here');
 
-      console.log('JoinChannelSuccess', connection);
-      setJoined(true);
-    });
+  //     console.log('JoinChannelSuccess', connection);
+  //     setJoined(true);
+  //   });
 
-    engine.current?.addListener('onError', error => {
-      Alert.alert(`Getting an error ${error}`);
-    });
+  //   engine.current?.addListener('onError', error => {
+  //     Alert.alert(`Getting an error ${error}`);
+  //   });
 
-    engine.current.addListener(
-      'onFirstLocalVideoFrame',
-      (uid, width, height, elapsed) => {
-        console.log(
-          'First local video frame received:',
-          uid,
-          width,
-          height,
-          elapsed,
-        );
-      },
-    );
+  //   engine.current.addListener(
+  //     'onFirstLocalVideoFrame',
+  //     (uid, width, height, elapsed) => {
+  //       console.log(
+  //         'First local video frame received:',
+  //         uid,
+  //         width,
+  //         height,
+  //         elapsed,
+  //       );
+  //     },
+  //   );
 
-    engine.current?.addListener(
-      'onFirstRemoteVideoFrame',
-      (uid, width, height, elapsed) => {
-        console.log(
-          'First remote video frame received:',
-          uid,
-          width,
-          height,
-          elapsed,
-        );
-      },
-    );
-  };
+  //   engine.current?.addListener(
+  //     'onFirstRemoteVideoFrame',
+  //     (uid, width, height, elapsed) => {
+  //       console.log(
+  //         'First remote video frame received:',
+  //         uid,
+  //         width,
+  //         height,
+  //         elapsed,
+  //       );
+  //     },
+  //   );
+  // };
 
   const uid = 649;
 
-  const startCall = async () => {
-    await init();
-    customVideoTrackId.current = engine.current?.createCustomVideoTrack();
+  // const startCall = async () => {
+  //   await init();
+  //   customVideoTrackId.current = engine.current?.createCustomVideoTrack();
 
-    console.log('customVideoTrackId.current', customVideoTrackId.current);
-    const response = await engine.current?.joinChannel(
-      config.token,
-      config.channelName,
-      uid,
-      {
-        publishCustomVideoTrack: true,
-        customVideoTrackId: customVideoTrackId.current,
-      },
-    );
-    console.log({response});
-  };
+  //   console.log('customVideoTrackId.current', customVideoTrackId.current);
+  //   const response = await engine.current?.joinChannel(
+  //     config.token,
+  //     config.channelName,
+  //     uid,
+  //     {
+  //       publishCustomVideoTrack: true,
+  //       customVideoTrackId: customVideoTrackId.current,
+  //     },
+  //   );
+  //   console.log({response});
+  // };
 
-  const endCall = async () => {
-    engine.current?.leaveChannel();
-    engine.current?.removeAllListeners();
-    engine.current?.destroyCustomVideoTrack(videoTrackId!);
-    try {
-      engine.current?.release();
-    } catch (e) {
-      console.log('release error:', e);
-    }
+  // const endCall = async () => {
+  //   engine.current?.leaveChannel();
+  //   engine.current?.removeAllListeners();
+  //   engine.current?.destroyCustomVideoTrack(customVideoTrackId.current!);
+  //   try {
+  //     engine.current?.release();
+  //   } catch (e) {
+  //     console.log('release error:', e);
+  //   }
 
-    setPeerIds([]);
-    setJoined(false);
-  };
+  //   setPeerIds([]);
+  //   setJoined(false);
+  // };
 
-  const toggleVideoMute = () => {
-    if (!isVideoMuted) {
-      engine.current?.disableVideo();
-    } else {
-      engine.current?.enableVideo();
-    }
-    setIsVideoMuted(!isVideoMuted);
-  };
+  // const toggleVideoMute = () => {
+  //   if (!isVideoMuted) {
+  //     engine.current?.disableVideo();
+  //   } else {
+  //     engine.current?.enableVideo();
+  //   }
+  //   setIsVideoMuted(!isVideoMuted);
+  // };
 
-  const toggleAudioMute = () => {
-    setIsAudioMuted(!isAudioMuted);
+  // const toggleAudioMute = () => {
+  //   setIsAudioMuted(!isAudioMuted);
 
-    if (!isAudioMuted) {
-      engine.current?.disableAudio();
-    } else {
-      engine.current?.enableAudio;
-    }
-  };
+  //   if (!isAudioMuted) {
+  //     engine.current?.disableAudio();
+  //   } else {
+  //     engine.current?.enableAudio;
+  //   }
+  // };
 
-  const toggleSwitchCamer = () => {
-    engine.current?.switchCamera();
-  };
+  // const toggleSwitchCamer = () => {
+  //   engine.current?.switchCamera();
+  // };
 
-  const startRecording = () => {
-    console.log('start recording');
+  // const generateNewFile = async (filePath: string) => {
+  //   const audioData = 'Simulated audio data for AAC format.';
 
-    camera.current?.startRecording({
-      onRecordingFinished: video => console.log(video),
-      onRecordingError: error => console.error(error),
-    });
-    setRecord('stop');
-  };
+  //   try {
+  //     RNFS.writeFile(filePath, audioData, 'base64')
+  //       .then(() => {
+  //         const recRes = engine.current?.startAudioRecording({
+  //           filePath: filePath,
+  //           encode: true,
+  //           sampleRate: 44100,
+  //           quality: AudioRecordingQualityType.AudioRecordingQualityLow,
+  //           fileRecordingType:
+  //             AudioFileRecordingType.AudioFileRecordingPlayback,
+  //           recordingChannel: 1,
+  //         });
 
-  const stopRecording = () => {
-    console.log('stop recording');
-    setRecord('start');
-    camera.current?.stopRecording();
-  };
+  //         console.log({recRes});
+  //       })
+  //       .catch(err => {
+  //         console.log(err.message);
+  //       });
+  //   } catch (error) {
+  //     console.error('Error creating audio file:', error);
+  //   }
+  // };
+
+  // const startRecording = () => {
+  //   const timestamp = new Date().getTime();
+  //   const filePath = `${RNFS.DownloadDirectoryPath}/${timestamp}_record.acc`;
+  //   // generateNewFile(filePath);
+
+  //   setRecord('stop');
+  // };
+
+  // const stopRecording = () => {
+  //   console.log('stop recording');
+  //   setRecord('start');
+  //   const stopRes = engine.current?.stopAudioRecording();
+  //   console.log({stopRes});
+  // };
 
   const format = useCameraFormat(device, [
     {photoResolution: {width: 1280, height: 720}},
   ]);
 
-  const renderVideos = () => {
-    return (
-      <View style={styles.fullView}>
-        <Camera
-          ref={camera}
-          frameProcessor={frameProcessor}
-          format={format}
-          fps={24}
-          pixelFormat="yuv"
-          preview={false}
-          device={device}
-          isActive={true}
-          video={true}
-          audio={true}
-        />
-        <RtcSurfaceView
-          style={styles.max}
-          canvas={{
-            uid: 649,
-            sourceType: VideoSourceType.VideoSourceCustom,
-          }}
-          connection={{
-            localUid: uid,
-            channelId: config.channelName,
-          }}
-        />
-        {renderRemoteVideos()}
-      </View>
-    );
-  };
+  // const renderVideos = () => {
+  //   return (
+  //     <View style={styles.fullView}>
+  //       <Camera
+  //         ref={camera}
+  //         frameProcessor={frameProcessor}
+  //         format={format}
+  //         fps={24}
+  //         pixelFormat="yuv"
+  //         preview={false}
+  //         device={device}
+  //         isActive={true}
+  //         video={true}
+  //         audio={true}
+  //       />
+  //       <RtcSurfaceView
+  //         style={styles.max}
+  //         canvas={{
+  //           uid: 0,
+  //         }}
+  //       />
+  //       {renderRemoteVideos()}
+  //     </View>
+  //   );
+  // };
 
-  const renderRemoteVideos = () => {
-    console.log({peerIds});
-    return (
-      <ScrollView
-        style={styles.remoteContainer}
-        contentContainerStyle={styles.padding}
-        horizontal={true}>
-        {peerIds.map(id => {
-          console.log('ID Here', {id});
-          return (
-            <RtcSurfaceView
-              style={styles.remote}
-              canvas={{
-                uid: id,
-              }}
-              key={id}
-            />
-          );
-        })}
-      </ScrollView>
-    );
-  };
+  // const renderRemoteVideos = () => {
+  //   console.log({peerIds});
+  //   return (
+  //     <ScrollView
+  //       style={styles.remoteContainer}
+  //       contentContainerStyle={styles.padding}
+  //       horizontal={true}>
+  //       {peerIds.map(id => {
+  //         console.log('ID Here', {id});
+  //         return (
+  //           <RtcSurfaceView
+  //             style={styles.remote}
+  //             canvas={{
+  //               uid: id,
+  //             }}
+  //             key={id}
+  //           />
+  //         );
+  //       })}
+  //     </ScrollView>
+  //   );
+  // };
 
-  const pushVideoFrame = Worklets.createRunOnJS(
-    async (resized: any, frame: FrameInternal) => {
-      if (engine.current && customVideoTrackId.current) {
-        const mediaEngine = engine.current?.getMediaEngine();
-        if (mediaEngine) {
-          try {
-            await mediaEngine?.pushVideoFrame(
-              {
-                type: VideoBufferType.VideoBufferRawData,
-                format: VideoPixelFormat.VideoPixelRgba,
-                buffer: resized,
-                stride: 50,
-                height: 100,
-              },
-              customVideoTrackId.current,
-            );
-          } catch (error) {
-            console.error('Error pushing video frame:', error);
-          }
-        }
-      }
-      frame.decrementRefCount();
-    },
-  );
+  // const pushVideoFrame = Worklets.createRunOnJS(async (resized: any) => {
+  //   if (engine.current && customVideoTrackId.current) {
+  //     const mediaEngine = engine.current?.getMediaEngine();
+  //     if (mediaEngine) {
+  //       try {
+  //         const response = mediaEngine?.pushVideoFrame(
+  //           {
+  //             type: VideoBufferType.VideoBufferRawData,
+  //             format: VideoPixelFormat.VideoPixelRgba,
+  //             buffer: resized,
+  //             stride: 50,
+  //             height: 100,
+  //           },
+  //           customVideoTrackId.current,
+  //         );
+  //         console.log({response});
+  //       } catch (error) {
+  //         console.error('Error pushing video frame:', error);
+  //       }
+  //     }
+  //   }
+  // });
 
   const frameProcessor = useFrameProcessor((frame: any) => {
     'worklet';
+
+    console.log(recordFrame(frame));
 
     runAtTargetFps(20, () => {
       'worklet';
@@ -303,8 +330,7 @@ const HomeScreen = () => {
           dataType: 'uint8',
         });
 
-        frame.incrementRefCount();
-        pushVideoFrame(resized!, frame);
+        // pushVideoFrame(resized!);
       }
     });
   }, []);
@@ -315,10 +341,32 @@ const HomeScreen = () => {
     } else if (Platform.OS === 'ios') {
       requestCameraAndAudioPermissionIOS();
     }
+    setDocumentsFolder(RNFS.DocumentDirectoryPath);
   }, []);
+
+  const onPress = () => {
+    CalendarModule.createCalendarEvent('testName', 'testLocation');
+  };
   return (
     <View style={{flex: 1}}>
-      {!isJoined ? (
+      <Button
+        title="Click to invoke your native module!"
+        color="#841584"
+        onPress={onPress}
+      />
+      {/* <Camera
+        ref={camera}
+        frameProcessor={frameProcessor}
+        format={format}
+        style={{flex: 1}}
+        fps={24}
+        pixelFormat="yuv"
+        device={device}
+        isActive={true}
+        video={true}
+        audio={true}
+      /> */}
+      {/* {!isJoined ? (
         <View style={styles.container}>
           <TouchableOpacity onPress={() => startCall()}>
             <Text style={styles.buttonText}>Join Room</Text>
@@ -369,7 +417,7 @@ const HomeScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      )} */}
     </View>
   );
 };

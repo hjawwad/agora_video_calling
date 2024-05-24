@@ -6,16 +6,21 @@ export const requestCameraAndAudioPermission = async () => {
     const granted = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.CAMERA,
       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
     ]);
-    if (
-      granted['android.permission.RECORD_AUDIO'] ===
-        PermissionsAndroid.RESULTS.GRANTED &&
-      granted['android.permission.CAMERA'] ===
-        PermissionsAndroid.RESULTS.GRANTED
-    ) {
-      console.log('You can use the cameras & mic');
+
+    const allPermissionsGranted = Object.values(granted).every(
+      status => status === PermissionsAndroid.RESULTS.GRANTED,
+    );
+
+    if (!allPermissionsGranted) {
+      Alert.alert(
+        'Permissions required',
+        'All permissions are required to use this app.',
+      );
     } else {
-      console.log('Permission denied');
+      console.log('Permission Granted');
     }
   } catch (err) {
     console.warn(err);
