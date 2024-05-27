@@ -317,22 +317,6 @@ const HomeScreen = () => {
     'worklet';
 
     console.log(recordFrame(frame));
-
-    runAtTargetFps(20, () => {
-      'worklet';
-      if (frame.pixelFormat === 'yuv') {
-        const resized = resize(frame, {
-          scale: {
-            width: 50,
-            height: 100,
-          },
-          pixelFormat: 'rgba',
-          dataType: 'uint8',
-        });
-
-        // pushVideoFrame(resized!);
-      }
-    });
   }, []);
 
   useEffect(() => {
@@ -344,17 +328,9 @@ const HomeScreen = () => {
     setDocumentsFolder(RNFS.DocumentDirectoryPath);
   }, []);
 
-  const onPress = () => {
-    CalendarModule.createCalendarEvent('testName', 'testLocation');
-  };
   return (
     <View style={{flex: 1}}>
-      <Button
-        title="Click to invoke your native module!"
-        color="#841584"
-        onPress={onPress}
-      />
-      {/* <Camera
+      <Camera
         ref={camera}
         frameProcessor={frameProcessor}
         format={format}
@@ -365,7 +341,7 @@ const HomeScreen = () => {
         isActive={true}
         video={true}
         audio={true}
-      /> */}
+      />
       {/* {!isJoined ? (
         <View style={styles.container}>
           <TouchableOpacity onPress={() => startCall()}>

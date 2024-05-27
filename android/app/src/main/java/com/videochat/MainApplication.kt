@@ -23,7 +23,6 @@ class MainApplication : Application(), ReactApplication {
               // add(MyReactNativePackage())
               add(FrameRecorderPluginPackage())
               add(SentFrameAgoraPluginPackage())
-              add(CustomePlugin())
             }
 
         override fun getJSMainModuleName(): String = "index"
