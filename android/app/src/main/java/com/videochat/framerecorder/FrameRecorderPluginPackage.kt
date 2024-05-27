@@ -5,12 +5,11 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 import com.mrousavy.camera.frameprocessors.FrameProcessorPluginRegistry
-import com.mrousavy.camera.frameprocessors.VisionCameraProxy
 
 class FrameRecorderPluginPackage : ReactPackage {
   companion object {
     init {
-      FrameProcessorPluginRegistry.addFrameProcessorPlugin("FrameRecorder") { proxy, options -> 
+      FrameProcessorPluginRegistry.addFrameProcessorPlugin("recordFrame") { proxy, options ->
         FrameRecorderPlugin.getInstance(proxy, options)
       }
     }

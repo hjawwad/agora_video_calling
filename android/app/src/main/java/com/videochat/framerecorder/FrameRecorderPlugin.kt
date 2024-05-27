@@ -1,17 +1,19 @@
 package com.videochat.framerecorder
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.Image
 import android.util.Log
-
 import com.mrousavy.camera.frameprocessors.Frame
 import com.mrousavy.camera.frameprocessors.FrameProcessorPlugin
 import com.mrousavy.camera.frameprocessors.VisionCameraProxy
+import com.visioncameraresizeplugin.ResizePlugin
 
-class FrameRecorderPlugin private constructor(private val proxy: VisionCameraProxy, private val options: Map<String, Any>?) : FrameProcessorPlugin() {
-   fun init() {}
-    override fun callback(frame: Frame, params: Map<String, Any>?): Any? {
-        Log.d("CALLED RECORDER PLUGIN", "CALLBACK")
-        return "RECORDED FRAME"
-    }
+class FrameRecorderPlugin(proxy: VisionCameraProxy, options: Map<String, Any>?): FrameProcessorPlugin() {
+  override fun callback(frame: Frame, params: Map<String, Any>?): Any? {
+    Log.d("CALLED REACRDER PLUGIN ", " CALLBACK")
+    return "RECORDED FRAME"
+  }
 
     companion object {
         @Volatile
@@ -24,4 +26,3 @@ class FrameRecorderPlugin private constructor(private val proxy: VisionCameraPro
         }
     }
 }
-
